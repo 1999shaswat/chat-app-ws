@@ -28,7 +28,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [websocket, setWebsocket] = useState<WebSocket | null>(null)
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080")
+    const ws = new WebSocket("wss://chat-app-ws-production.up.railway.app")
     setWebsocket(ws) // Update the WebSocket state
 
     // runs on unmount
