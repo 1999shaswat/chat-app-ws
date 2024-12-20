@@ -8,7 +8,7 @@ import { Copy } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import {toast} from "sonner"
 
-export default function Room({ setView }: { setView: (view: "home" | "room") => void }) {
+export default function Room() {
   const [userInput, setUserInput] = useState("")
   const [messages, setMessages] = useState<ServerEvents[]>([]) // array of obj response
 
