@@ -1,11 +1,9 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const ws_1 = require("ws");
-const nanoid_1 = require("nanoid");
+import { WebSocketServer } from "ws";
+import { customAlphabet } from "nanoid";
 // Define a custom alphabet and length for userId and roomId
-const generateUserId = (0, nanoid_1.customAlphabet)("1234567890", 5);
-const generateRoomId = (0, nanoid_1.customAlphabet)("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", 5);
-const wss = new ws_1.WebSocketServer({ port: 8080 });
+const generateUserId = customAlphabet("1234567890", 5);
+const generateRoomId = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", 5);
+const wss = new WebSocketServer({ port: 8080 });
 let rooms = new Map();
 let userToRoom = new Map();
 let userIdToName = new Map();

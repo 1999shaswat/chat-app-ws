@@ -14,6 +14,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "type": "module",
   "dependencies": {
     "nanoid": "^5.0.9",
     "ws": "^8.18.0"

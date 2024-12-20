@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from "ws"
-import { UserEvents, ServerResponses, ServerEvents, UserId_RoomId } from "./events"
+import { UserEvents, ServerResponses, ServerEvents, UserId_RoomId } from "./events.js"
 import { customAlphabet } from "nanoid"
 
 // Define a custom alphabet and length for userId and roomId
