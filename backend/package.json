@@ -1,12 +1,15 @@
 {
   "name": "chat-app",
+  "engines": {
+    "node": "22.x"
+  },
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsc -b && node --experimental-require-module ./dist/index.js",
-    "start": "node --experimental-require-module ./dist/index.js"
+    "dev": "tsc -b && node ./dist/index.js",
+    "start": "node ./dist/index.js"
   },
   "keywords": [],
   "author": "",
