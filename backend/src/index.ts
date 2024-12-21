@@ -1,12 +1,28 @@
 import { WebSocket, WebSocketServer } from "ws"
 import { UserEvents, ServerResponses, ServerEvents, UserId_RoomId } from "./events.js"
 import { customAlphabet } from "nanoid"
+import express, { Request, Response } from "express"
+
+// const express = require("express");
+const app = express()
+
+app.get("/health", (req: Request, res: Response): void => {
+  res.status(200).send("OK")
+})
+
+const PORT = parseInt(process.env.PORT || "8080", 10)
+const server = app.listen(PORT, () => {
+  console.log(`Listening on port ${PORT}`)
+})
+
+const wss = new WebSocketServer({ server })
 
 // Define a custom alphabet and length for userId and roomId
 const generateUserId = customAlphabet("1234567890", 5)
 const generateRoomId = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", 5)
 
-const wss = new WebSocketServer({ port: 8080 })
+// const PORT = Number(process.env.PORT) || 8080
+// const wss = new WebSocketServer({ port: PORT })
 
 interface RoomMember {
   socket: WebSocket
@@ -71,16 +87,37 @@ function sendMessageToRoom(payload: UserEvents["payload"]) {
   }
 
   room.forEach(({ socket }) => {
-    const messageObj: ServerEvents = {
-      type: "chat",
-      payload: {
-        userId,
-        userName,
-        message,
-      },
+    try {
+      const messageObj: ServerEvents = {
+        type: "chat",
+        payload: {
+          userId,
+          userName,
+          message,
+        },
+      }
+      socket.send(JSON.stringify(messageObj))
+    } catch (error) {
+      console.error("Error sending message to client:", error)
     }
-    socket.send(JSON.stringify(messageObj))
   })
+}
+
+const roomTimeouts = new Map<string, NodeJS.Timeout>()
+
+function scheduleRoomDeletion(roomId: string, timeout: number) {
+  if (roomTimeouts.has(roomId)) return
+
+  const timeoutId = setTimeout(() => {
+    const room = rooms.get(roomId)
+    if (room && room.length === 0) {
+      rooms.delete(roomId)
+      roomTimeouts.delete(roomId)
+      console.log(`Room ${roomId} deleted due to inactivity.`)
+    }
+  }, timeout)
+
+  roomTimeouts.set(roomId, timeoutId)
 }
 
 function handle_UserId_RoomId_Request(socket: WebSocket, userId_RoomId: UserId_RoomId) {
@@ -97,24 +134,64 @@ function handle_UserId_RoomId_Request(socket: WebSocket, userId_RoomId: UserId_R
 
   if (userId_RoomId.type === "createRoom") {
     const roomId = generateRoomId()
+    rooms.set(roomId, []) // Update the map
+
+    const timeout = 600000 // 10 minutes
+    scheduleRoomDeletion(roomId, timeout)
+
     const roomIdRes: UserId_RoomId = {
       type: "setRoomId",
       payload: {
         roomId,
       },
     }
-    rooms.set(roomId, []) // Update the map
-
-    const timeout = 600000 // 10 minutes
-    setTimeout(() => {
-      const room = rooms.get(roomId)
-      if (room && room.length === 0) {
-        rooms.delete(roomId) // Delete the room from the map
-        console.log(`Room ${roomId} deleted due to inactivity.`)
-      }
-    }, timeout)
     socket.send(JSON.stringify(roomIdRes))
     return
+  }
+}
+
+function cleanupDisconnectedUser(socket: WebSocket) {
+  let userIdToRemove: string | undefined
+
+  // Find the user and remove them from the rooms map
+  for (const [roomId, room] of rooms.entries()) {
+    // find the corresponding RoomMember obj using current user's socket
+    const memberIndex = room.findIndex(({ socket: memberSocket }) => memberSocket === socket)
+
+    if (memberIndex !== -1) {
+      userIdToRemove = room[memberIndex].userId
+
+      // Remove the member from the room
+      room.splice(memberIndex, 1)
+
+      if (room.length === 0) {
+        rooms.delete(roomId) // Remove empty rooms
+      } else {
+        rooms.set(roomId, room) // Update the room
+      }
+
+      const serverResponse: ServerResponses = {
+        type: "response",
+        payload: {
+          action: "leaveroom",
+          roomId,
+          roomCount: room.length,
+          status: "success",
+          message: "Room joined",
+        },
+      }
+
+      room.map((m) => m.socket.send(JSON.stringify(serverResponse)))
+
+      // exit the loop when found
+      break
+    }
+  }
+
+  // Remove the user from the userToRoom map
+  if (userIdToRemove) {
+    userIdToName.delete(userIdToRemove)
+    userToRoom.delete(userIdToRemove)
   }
 }
 
@@ -123,57 +200,39 @@ wss.on("connection", (socket) => {
 
   // handler logic
   socket.on("message", (data) => {
-    const message = data.toString()
+    try {
+      const message = data.toString()
 
-    // console.log(message)
+      // console.log(message)
 
-    const userRequest: UserEvents = JSON.parse(message)
+      const userRequest: UserEvents = JSON.parse(message)
 
-    if (userRequest.type === "join") {
-      addMemberToRoom(socket, userRequest.payload)
-      return
+      if (userRequest.type === "join") {
+        addMemberToRoom(socket, userRequest.payload)
+        return
+      }
+
+      if (userRequest.type === "chat") {
+        sendMessageToRoom(userRequest.payload)
+        return
+      }
+
+      // createRoom or getUserId
+      const userId_RoomId: UserId_RoomId = JSON.parse(message)
+      handle_UserId_RoomId_Request(socket, userId_RoomId)
+    } catch (error) {
+      console.error("Error processing message:", error)
+      const serverResponse: ServerResponses = {
+        type: "response",
+        payload: {
+          status: "error",
+          message: "Invalid request format",
+        },
+      }
+      socket.send(JSON.stringify(serverResponse))
     }
-
-    if (userRequest.type === "chat") {
-      sendMessageToRoom(userRequest.payload)
-      return
-    }
-
-    const userId_RoomId: UserId_RoomId = JSON.parse(message)
-    handle_UserId_RoomId_Request(socket, userId_RoomId)
   })
 
   //disconnect logic
-  socket.on("close", () => {
-    // Remove user from room and cleanup
-    let userIdToRemove: string | undefined
-
-    // Find the user and remove them from the rooms map
-    for (const [roomId, members] of rooms.entries()) {
-      // find the corresponding RoomMember obj using current user's socket
-      const memberIndex = members.findIndex(({ socket: memberSocket }) => memberSocket === socket)
-
-      if (memberIndex !== -1) {
-        userIdToRemove = members[memberIndex].userId
-
-        // Remove the member from the room
-        members.splice(memberIndex, 1)
-
-        if (members.length === 0) {
-          rooms.delete(roomId) // Remove empty rooms
-        } else {
-          rooms.set(roomId, members) // Update the room
-        }
-
-        // exit the loop when found
-        break
-      }
-    }
-
-    // Remove the user from the userToRoom map
-    if (userIdToRemove) {
-      userIdToName.delete(userIdToRemove)
-      userToRoom.delete(userIdToRemove)
-    }
-  })
+  socket.on("close", () => cleanupDisconnectedUser(socket))
 })
