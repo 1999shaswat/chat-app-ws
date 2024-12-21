@@ -7,10 +7,10 @@ export interface ServerEvents {
   }
 }
 
-export interface ServerResponse {
-  type: "response"
+export interface ServerResponses {
+  type: "response" | "error"
   payload: {
-    action: "joinroom"
+    action?: "joinroom" | "leaveroom"
     roomId?: string
     roomCount?: number
     status: "error" | "success"

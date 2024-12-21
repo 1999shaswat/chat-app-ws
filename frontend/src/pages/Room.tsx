@@ -2,11 +2,11 @@ import Header from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppContext } from "@/Context"
-import { ServerEvents, ServerResponse, UserEvents } from "@/events"
+import { ServerEvents, ServerResponses, UserEvents } from "@/events"
 import { copyToClipboard } from "@/helpers"
 import { Copy } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import {toast} from "sonner"
+import { toast } from "sonner"
 
 export default function Room() {
   const [userInput, setUserInput] = useState("")
@@ -30,15 +30,16 @@ export default function Room() {
           return
         }
 
-        const serverResponse: ServerResponse = JSON.parse(event.data)
+        const serverResponse: ServerResponses = JSON.parse(event.data)
 
         if (serverResponse.type === "response") {
           if (serverResponse.payload.status === "error") {
-            // toast.error(serverResponse.payload.message)
+            toast.error(serverResponse.payload.message)
           } else if (serverResponse.payload.status === "success") {
             // toast.success(serverResponse.payload.message)
             // page actions
-            if (serverResponse.payload.action === "joinroom") {
+
+            if (serverResponse.payload.action === "joinroom" || serverResponse.payload.action === "leaveroom") {
               setThisRoomCount(serverResponse.payload.roomCount ?? 0)
             }
           }
@@ -75,7 +76,9 @@ export default function Room() {
       </div>
       <div className='border border-[#E4E7EB] bg-[#FDFCFB] rounded-lg h-96 overflow-auto'>
         {messages.length === 0 && (
-          <div className='flex items-center justify-center h-full text-[#9AA5B1] italic'>No messages yet. Let’s chat! ✨💬</div>
+          <div className='flex items-center justify-center h-full text-[#9AA5B1] italic'>
+            {thisRoomCount < 2 ? "All quiet here. Waiting for others to join! 🌟👥" : "No messages yet. Let’s chat! ✨💬"}
+          </div>
         )}
         {messages.map((m, ind) => (
           <Message userId={m.payload.userId} userName={m.payload.userName} message={m.payload.message} key={ind} />
@@ -89,11 +92,13 @@ export default function Room() {
           onChange={(e) => setUserInput(e.target.value)}
           placeholder='Type a message...'
           value={userInput}
+          disabled={thisRoomCount < 2}
         />
         <Button
           type='button'
           className='bg-[#B8EBD0] hover:bg-[#A4E0C3] text-[#35664C] font-semibold px-8 py-2 rounded-lg shadow'
-          onClick={() => sendMessage(thisUserId, userInput, setUserInput, websocket)}>
+          onClick={() => sendMessage(thisUserId, userInput, setUserInput, websocket)}
+          disabled={thisRoomCount < 2}>
           Send
         </Button>
       </div>
@@ -106,8 +111,8 @@ function sendMessage(thisUserId: string, message: string, setUserInput: (message
     console.log("ws undefined")
     return
   }
-  
-  if (message.length==0) {
+
+  if (message.length == 0) {
     toast.error("Oops! You forgot to type your message")
     return
   }

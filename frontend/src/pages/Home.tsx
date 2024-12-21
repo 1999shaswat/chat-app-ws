@@ -2,7 +2,7 @@ import Header from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppContext } from "@/Context"
-import { UserId_RoomId, UserEvents, ServerResponse } from "@/events"
+import { UserId_RoomId, UserEvents, ServerResponses } from "@/events"
 import { copyToClipboard } from "@/helpers"
 import { Copy } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -44,7 +44,7 @@ export default function Home({ setView }: { setView: (view: "home" | "room") => 
           setThisRoomId(data.payload.roomId)
           return
         }
-        const serverResponse: ServerResponse = JSON.parse(event.data)
+        const serverResponse: ServerResponses = JSON.parse(event.data)
 
         if (serverResponse.type === "response") {
           if (serverResponse.payload.status === "error") {
